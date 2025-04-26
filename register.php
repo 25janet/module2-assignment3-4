@@ -1,59 +1,68 @@
 <?php
-session_start(); // Start the session
+session_start();
 
-$servername = "localhost"; 
-$username = "user"; // Replace with your actual database username
-$password = "cdcb"; // Replace with your actual database password
-$dbname = "users"; 
+// Database connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "users";
 
-// Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
 
-// Check connection
+// Connection check
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die("❌ Connection failed: " . $conn->connect_error);
 }
 
+// Form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Sanitize and validate input
+    // Sanitize inputs
     $username = htmlspecialchars(trim($_POST['username']));
     $email = htmlspecialchars(trim($_POST['email']));
-    $phoneNumber = htmlspecialchars(trim($_POST['phone_number'])); // Updated name
+    $phoneNumber = htmlspecialchars(trim($_POST['phone_number']));
     $password = htmlspecialchars(trim($_POST['password']));
 
-    // Check for empty fields
+    // Validation
     if (empty($username) || empty($email) || empty($phoneNumber) || empty($password)) {
-        echo "All fields are required.";
-        exit;
+        die("❌ All fields are required.");
     }
 
-    // Validate email format
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo "Invalid email format.";
-        exit;
+        die("❌ Invalid email format.");
     }
 
-    // Hash the password
-    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+    // Check for duplicate username
+    $checkUser = $conn->prepare("SELECT id FROM users WHERE username = ?");
+    $checkUser->bind_param("s", $username);
+    $checkUser->execute();
+    $checkUser->store_result();
 
-    // Use prepared statements to prevent SQL injection
+    if ($checkUser->num_rows > 0) {
+        die("❌ Username already exists. Choose another.");
+    }
+    $checkUser->close();
+
+    // Hash password
+    $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+    // Insert new user
     $stmt = $conn->prepare("INSERT INTO users (username, email, phone_number, password) VALUES (?, ?, ?, ?)");
-    if ($stmt === false) {
-        die("Prepare failed: " . $conn->error);
+    if (!$stmt) {
+        die("❌ SQL Error: " . $conn->error);
     }
 
     $stmt->bind_param("ssss", $username, $email, $phoneNumber, $hashedPassword);
 
     if ($stmt->execute()) {
-        // Registration successful, log the user in
-        $_SESSION['username'] = $username; // Store username in session
-        header("Location: loginpage.html"); // Redirect to the login page
+        echo "✅ Registration successful!";
+        header("Location: index.html");
         exit();
     } else {
-        echo "Error: " . $stmt->error;
+        echo "❌ Error: " . $stmt->error;
     }
 
     $stmt->close();
-    $conn->close(); // Close the database connection
 }
+
+$conn->close();
 ?>
